@@ -217,4 +217,39 @@ Implement the malloc/free wrappers and allocation table to pinpoint exactly wher
 Integrate Cppcheck into your workflow so code doesn’t drift.
 
 Feel free to ask for clarification on any step—building and debugging an RTOS is a big first project, but with incremental testing and these tools you’ll have full visibility into your heap!
+/* leak_demo.c */
+#include "FreeRTOS.h"
+#include "task.h"
+#include <string.h>
+
+static void vLeakyTask(void *pvParameters)
+{
+    for (;;)
+    {
+        char *pBuffer = pvPortMalloc(256);
+        if (pBuffer == NULL)
+        {
+            /* Oops—allocation failed */
+            continue;
+        }
+
+        /* Simulate reading a message into the buffer */
+        if (receive_uart_message(pBuffer, 256) != 0)
+        {
+            /* Error path: we forget to free! */
+            // vPortFree(pBuffer);  <-- intentionally missing
+        }
+        else
+        {
+            /* Process message then free */
+            process_message(pBuffer);
+            vPortFree(pBuffer);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}
+
+// In main()
+xTaskCreate(vLeakyTask, "Leaky", configMINIMAL_STACK_SIZE * 2, NULL, 2, NULL);
 
